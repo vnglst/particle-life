@@ -101,7 +101,7 @@
           .join(",");
         const url = new URL(window.location.href);
         url.searchParams.set("matrix", encoded);
-        window.history.pushState({}, "", url);
+        window.history.replaceState({}, "", url);
       }
 
       function decodeMatrixFromUrl() {
