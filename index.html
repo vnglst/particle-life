@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Particle Life</title>
+    <meta name="description" content="" />
+    <link rel="canonical" href="https://particle-life.koenvangilst.nl/" />
+    <link rel="author" href="https://koenvangilst.nl" />
+    <meta name="theme-color" content="black" />
+    <meta name="creator" content="Koen van Gilst" />
+    <style>
+      html {
+        height: 100%;
+      }
+
+      body {
+        margin: 0;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        height: 100%;
+        background: linear-gradient(to bottom, #000 0%, #001f3f 100%);
+      }
+
+      canvas {
+        display: block;
+        border-radius: 5px;
+        overflow: hidden;
+        font-family: monospace;
+        box-shadow: 0 0 20px rgba(0, 0, 0, 0.2);
+        width: min(70vh, 80%);
+        max-width: 600px;
+        margin-top: 20px;
+      }
+
+      #made {
+        text-align: center;
+        line-height: 1.5;
+        font-family: monospace;
+        margin-top: auto;
+        margin-bottom: 20px;
+        font-size: 10px;
+        color: #f6f7ed;
+      }
+
+      a {
+        color: #f6f7ed;
+        text-decoration: none;
+        border-bottom: 1px solid #f6f7ed;
+      }
+
+      #randomizeButton {
+        padding: 10px 20px;
+        margin-bottom: 20px;
+        font-family: monospace;
+        font-size: 14px;
+        color: #f6f7ed;
+        background-color: #001f3f;
+        border: 1px solid #f6f7ed;
+        border-radius: 5px;
+        cursor: pointer;
+        margin-top: auto;
+      }
+
+      #randomizeButton:hover {
+        background-color: #f6f7ed;
+        color: #001f3f;
+      }
+    </style>
+  </head>
+  <body>
+    <button id="randomizeButton">Randomize Interactions</button>
+    <canvas id="canvas" width="500" height="500"></canvas>
+
+    <p id="made">
+      made by
+      <a href="https://koenvangilst.nl/labs/pong-wars">Koen van Gilst</a> |
+      source on
+      <a href="https://github.com/vnglst/particle-life">github</a>
+    </p>
+    <script>
+      const colorPalette = {
+        praxetiWhite: "#F6F7ED",
+        firstColorsOfSpring: "#DBE64C",
+        midnightMirage: "#001F3F",
+        mantis: "#74C365",
+        pictureBookGreen: "#00804C",
+        nuitBlanche: "#1E488F",
+      };
+
+      const numTypes = Object.keys(colorPalette).length;
+      let interactionMatrix = [];
+
+      function encodeMatrixToUrl(matrix) {
+        const encoded = matrix
+          .flat()
+          .map((val) => val.toFixed(2))
+          .join(",");
+        const url = new URL(window.location.href);
+        url.searchParams.set("matrix", encoded);
+        window.history.pushState({}, "", url);
+      }
+
+      function decodeMatrixFromUrl() {
+        const matrixParam = new URL(window.location.href).searchParams.get(
+          "matrix"
+        );
+        if (matrixParam) {
+          const flattened = matrixParam.split(",").map(Number);
+          return Array.from({ length: numTypes }, (_, i) =>
+            flattened.slice(i * numTypes, i * numTypes + numTypes)
+          );
+        }
+
+        return [
+          [-0.38, 1, 0.94, 0.52, 0.46, -0.65],
+          [-0.27, 0.77, 0.42, -0.84, -0.22, -0.55],
+          [0.52, -0.79, -0.14, 0.76, 0.3, 0.61],
+          [-0.23, -0.65, -0.45, 0.97, 0.54, 0.92],
+          [0.78, -0.11, 0.84, -0.3, -0.89, -0.76],
+          [-0.78, 0.91, 0.97, -0.43, -0.92, 0.75],
+        ];
+      }
+
+      function randomizeInteractions() {
+        interactionMatrix = Array.from({ length: numTypes }, () =>
+          Array.from({ length: numTypes }, () => (Math.random() - 0.5) * 2)
+        );
+        encodeMatrixToUrl(interactionMatrix);
+      }
+
+      document
+        .getElementById("randomizeButton")
+        .addEventListener("click", randomizeInteractions);
+
+      interactionMatrix = decodeMatrixFromUrl();
+      console.log("Interaction Matrix:", interactionMatrix);
+
+      class Particle {
+        constructor(x, y, radius, color, type) {
+          this.x = x;
+          this.y = y;
+          this.radius = radius;
+          this.color = color;
+          this.type = type;
+          this.velocity = {
+            x: (Math.random() - 0.5) * 2,
+            y: (Math.random() - 0.5) * 2,
+          };
+          this.acceleration = { x: 0, y: 0 };
+          this.maxVelocity = 2;
+        }
+
+        draw(context) {
+          context.beginPath();
+          context.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+          context.fillStyle = this.color;
+          context.fill();
+          context.closePath();
+        }
+
+        update(particles) {
+          this.acceleration.x = 0;
+          this.acceleration.y = 0;
+
+          for (let particle of particles) {
+            if (this === particle) continue;
+
+            const dx = particle.x - this.x;
+            const dy = particle.y - this.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            const minDistance = this.radius + particle.radius;
+            const forceDirectionX = dx / distance;
+            const forceDirectionY = dy / distance;
+
+            if (distance < 100) {
+              const force = (100 - distance) / 100;
+              const interactionStrength =
+                interactionMatrix[this.type][particle.type];
+              this.acceleration.x +=
+                force * forceDirectionX * interactionStrength;
+              this.acceleration.y +=
+                force * forceDirectionY * interactionStrength;
+            }
+
+            if (distance < minDistance) {
+              const repulsionForce = (minDistance - distance) / minDistance;
+              this.acceleration.x -= repulsionForce * forceDirectionX * 200;
+              this.acceleration.y -= repulsionForce * forceDirectionY * 200;
+            }
+          }
+
+          this.velocity.x += this.acceleration.x;
+          this.velocity.y += this.acceleration.y;
+
+          this.velocity.x =
+            Math.sign(this.velocity.x) *
+            Math.min(Math.abs(this.velocity.x), this.maxVelocity);
+          this.velocity.y =
+            Math.sign(this.velocity.y) *
+            Math.min(Math.abs(this.velocity.y), this.maxVelocity);
+
+          this.velocity.x *= 0.7;
+          this.velocity.y *= 0.7;
+
+          this.x = (this.x + this.velocity.x + canvas.width) % canvas.width;
+          this.y = (this.y + this.velocity.y + canvas.height) % canvas.height;
+
+          this.draw(context);
+        }
+      }
+
+      const canvas = document.getElementById("canvas");
+      const context = canvas.getContext("2d");
+      let particles = [];
+
+      function init() {
+        particles = [];
+        const colors = Object.values(colorPalette);
+        for (let i = 0; i < 1000; i++) {
+          const radius = 5;
+          const x = Math.random() * (canvas.width - radius * 2) + radius;
+          const y = Math.random() * (canvas.height - radius * 2) + radius;
+          const color = colors[i % colors.length];
+          const type = i % colors.length;
+          particles.push(new Particle(x, y, radius, color, type));
+        }
+      }
+
+      function animate() {
+        requestAnimationFrame(animate);
+        context.fillStyle = "rgba(0, 0, 0, 0.1)";
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        particles.forEach((particle) => particle.update(particles));
+      }
+
+      init();
+      animate();
+    </script>
+  </body>
+</html>
